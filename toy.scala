@@ -4,7 +4,6 @@ import java.util.ArrayList
 import java.util.Random
 
 
-
 implicit def toInteger(i : Int) = new Integer(i)
 
 class Integer(int : Int) extends Proxy {
@@ -19,19 +18,22 @@ class Integer(int : Int) extends Proxy {
 }
 
 
-
 val caller = self
 val rand = new Random()
 var nodes = Array[Actor]()
 
 3 times (_ =>
 	nodes = nodes ++ Array(actor {
-		receive {
-			case "start" =>
-				nodes(rand.nextInt(nodes.length)) ! "message"
-			case _ =>
-				println("node received message")
-				caller ! "done"
+		while(true) {
+			receive {
+				case "start" =>
+					val num = rand.nextInt(nodes.length)
+					println("sending message to " + num.toString())
+					nodes(num) ! "message"
+				case _ =>
+					println("node received message")
+					caller ! "done"
+			}
 		}
 	})
 )
