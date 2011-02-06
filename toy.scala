@@ -28,7 +28,7 @@ var nodes  = Array[Actor]()
 		actor { loop { receive {
 			case (from : Actor, block : NodeBehaviour) =>
 				val id = nodes.indexOf(self)
-				println("#" + id + ": received message from node #" + (nodes.indexOf(from)))
+				println("#" + id + ": received code to execute from node #" + (nodes.indexOf(from)))
 				block.call(from)
 		}}}
 	)
@@ -51,13 +51,17 @@ val nodeBehaviour0 = new NodeBehaviour(b0)
 def b0(from : Actor) : Unit = {
 	var rand = prng.nextInt(nodes.length)
 	val id = nodes.indexOf(self)
-	println("#" + id + ": sending message type 0 to #" + rand)
-	if(rand == 0)
+	print("#" + id + ": performing computation 0; ")
+	if(rand == 0) {
+		println("telling main thread that computation is done")
 		caller ! 'done
-	else if(rand % 4 == 0)
+	} else if(rand % 4 == 0) {
+		println("telling #" + rand + " to perform computation 1")
 		nodes(rand) ! (self, nodeBehaviour1)
-	else
+	} else {
+		println("telling #" + rand + " to perform computation 0")
 		nodes(rand) ! (self, nodeBehaviour0)
+	}
 }
 
 val nodeBehaviour1 = new NodeBehaviour(b1)
@@ -65,13 +69,17 @@ val nodeBehaviour1 = new NodeBehaviour(b1)
 def b1(from : Actor) : Unit = {
 	var rand = prng.nextInt(nodes.length)
 	val id = nodes.indexOf(self)
-	println("#" + id + ": sending message type 1 to #" + rand)
-	if(rand == 0)
+	print("#" + id + ": performing computation 1; ")
+	if(rand == 0) {
+		println("telling main thread that computation is done")
 		caller ! 'done
-	else if(rand % 4 == 0)
+	} else if(rand % 4 == 0) {
+		println("telling #" + rand + " to perform computation 0")
 		nodes(rand) ! (self, nodeBehaviour0)
-	else
+	} else {
+		println("telling #" + rand + " to perform computation 1")
 		nodes(rand) ! (self, nodeBehaviour1)
+	}
 }
 
 
