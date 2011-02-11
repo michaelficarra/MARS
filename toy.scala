@@ -4,37 +4,39 @@ import java.util.ArrayList
 import java.util.Random
 
 
-implicit def toInt(i : Int) = new Integer(i)
-
-class Integer(int : Int) extends Proxy {
-	def self = int
-	def times(block : Int => Unit) = {
-		var i = 0
-		while (i < self) {
-			block(i)
-			i += 1
-		}
-	}
-}
-
-
 val caller = self
 val prng   = new Random()
-var nodes  = Array[Actor]()
+var nodes  = Seq[Actor]()
 
 
 // make some nodes
-10 times ((whichTime) => {
+0 to 9 foreach ((whichTime) => {
 	var clock = 0
+	val id = whichTime
+	def log(msg : String) = println( id + " @ " + clock + ": " + msg )
 	nodes = nodes ++ Array(
 		actor { loop { receive {
 			case (from : Actor, block : NodeBehaviour, timestamp : Int) =>
-				val id = nodes.indexOf(self)
-				println("#" + id + " @ " + clock + ": received code to execute from node #" + (nodes.indexOf(from)))
 				// do some lamport clock calculations here
+				clock = clock max (timestamp + 1)
+				log("received code to execute from node #" + (nodes.indexOf(from)))
+				var times = new Array[Int](nodes.length)
+				times update (id, clock)
+				nodes filter { _ != self } foreach ((node) => {
+					node ! (self, 'clock)
+				})
+				nodes filter { _ != self } foreach ((node) => {
+					receive {
+						case (from : Actor, timestamp : Int) =>
+							times update (nodes indexOf from, timestamp)
+					}
+				})
+				println(times toSeq)
 				block(from, clock)
+			case (from : Actor, 'clock) =>
+				from ! (self, clock)
 			case _ =>
-				println("error, received bad message")
+				log("error: received bad message")
 				exit(1.asInstanceOf[AnyRef])
 		}}}
 	)
