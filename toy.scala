@@ -18,6 +18,52 @@ def nodeName(node : Actor) : String = {
 }
 
 
+// behaviours are just function wrappers so we can pattern match on them
+class NodeBehaviour (block : ((Actor, Array[Int]) => Unit)) {
+	def apply(sender : Actor, clock : Array[Int]) : Unit = block(sender, clock)
+	override def toString() : String = block.toString()
+}
+
+// define a behaviour for these nodes (these ones simply keep passing messages
+//  to random nodes until it gets back to the originator)
+
+def b0(sender : Actor, clock : Array[Int]) : Unit = {
+	val rand = prng.nextInt(nodes.length)
+	val time = clock(nodes indexOf self)
+	print(nodeName(self) + " @" + time + ": performing computation 0; ")
+	if(rand == 0) {
+		println("telling main thread that computation is done")
+		main ! ((self, clock, 'done))
+	} else if(rand % 4 == 0) {
+		println("telling #" + rand + " to perform computation 1")
+		nodes(rand) ! ((self, clock, nodeBehaviour1))
+	} else {
+		println("telling #" + rand + " to perform computation 0")
+		nodes(rand) ! ((self, clock, nodeBehaviour0))
+	}
+}
+
+val nodeBehaviour0 = new NodeBehaviour(b0 _)
+
+def b1(sender : Actor, clock : Array[Int]) : Unit = {
+	val rand = prng.nextInt(nodes.length)
+	val time = clock(nodes indexOf self)
+	print(nodeName(self) + " @" + time + ": performing computation 1; ")
+	if(rand == 0) {
+		println("telling main thread that computation is done")
+		main ! ((self, clock, 'done))
+	} else if(rand % 4 == 0) {
+		println("telling #" + rand + " to perform computation 0")
+		nodes(rand) ! ((self, clock, nodeBehaviour0))
+	} else {
+		println("telling #" + rand + " to perform computation 1")
+		nodes(rand) ! ((self, clock, nodeBehaviour1))
+	}
+}
+val nodeBehaviour1 = new NodeBehaviour(b1 _)
+
+
+
 // make some nodes
 0 until numberOfNodes foreach ((id) => {
 	var clock = new Array[Int](numberOfNodes)
@@ -42,52 +88,6 @@ def nodeName(node : Actor) : String = {
 			exit(1.asInstanceOf[AnyRef])
 	}}}
 })
-
-
-// behaviours are just function wrappers so we can pattern match on them
-class NodeBehaviour (block : ((Actor, Array[Int]) => Unit)) {
-	def apply(sender : Actor, clock : Array[Int]) : Unit = block(sender, clock)
-	override def toString() : String = block.toString()
-}
-
-// define a behaviour for these nodes (these ones simply keep passing messages
-//  to random nodes until it gets back to the originator)
-
-val nodeBehaviour0 = new NodeBehaviour(b0 _)
-
-def b0(sender : Actor, clock : Array[Int]) : Unit = {
-	val rand = prng.nextInt(nodes.length)
-	val time = clock(nodes indexOf self)
-	print(nodeName(self) + " @" + time + ": performing computation 0; ")
-	if(rand == 0) {
-		println("telling main thread that computation is done")
-		main ! ((self, clock, 'done))
-	} else if(rand % 4 == 0) {
-		println("telling #" + rand + " to perform computation 1")
-		nodes(rand) ! ((self, clock, nodeBehaviour1))
-	} else {
-		println("telling #" + rand + " to perform computation 0")
-		nodes(rand) ! ((self, clock, nodeBehaviour0))
-	}
-}
-
-val nodeBehaviour1 = new NodeBehaviour(b1 _)
-
-def b1(sender : Actor, clock : Array[Int]) : Unit = {
-	val rand = prng.nextInt(nodes.length)
-	val time = clock(nodes indexOf self)
-	print(nodeName(self) + " @" + time + ": performing computation 1; ")
-	if(rand == 0) {
-		println("telling main thread that computation is done")
-		main ! ((self, clock, 'done))
-	} else if(rand % 4 == 0) {
-		println("telling #" + rand + " to perform computation 0")
-		nodes(rand) ! ((self, clock, nodeBehaviour0))
-	} else {
-		println("telling #" + rand + " to perform computation 1")
-		nodes(rand) ! ((self, clock, nodeBehaviour1))
-	}
-}
 
 
 // get it started
