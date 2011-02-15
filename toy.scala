@@ -68,20 +68,21 @@ val nodeBehaviour1 = new NodeBehaviour(b1 _)
 	var clock = new Array[Int](numberOfNodes)
 	clock padTo (numberOfNodes, 0)
 	def log(msg : String) = println( "node #" + id + ": " + msg )
-	def updateClock(withRespectTo : Actor, timestamp : Array[Int]) = {
-		val sid = nodes indexOf withRespectTo
+	def updateClock(timestamp : Array[Int]) = {
 		clock.indices foreach { idx =>
 			clock(idx) = clock(idx) max timestamp(idx)
 		}
-		if(sid >= 0) clock(sid) = clock(sid) max (1 + timestamp(sid))
-		if(sid != id) clock(id) = clock(id) max (1 + timestamp(id))
+		incrementClock
+	}
+	def incrementClock = {
+		clock(id) = clock(id) + 1
 	}
 	nodes = nodes :+ actor { loop { receive {
 		case (sender : Actor, timestamp : Array[Int], block : NodeBehaviour) =>
-			log("clock before: " + clock.toList.toString)
-			updateClock(sender, timestamp)
-			log(" clock after: " + clock.toList.toString)
 			log("received code to execute from " + nodeName(sender))
+			log("clock before: " + clock.toList.toString)
+			updateClock(timestamp)
+			log(" clock after: " + clock.toList.toString)
 			block(sender, clock)
 		case (sender : Actor, 'clock) =>
 			sender ! (self, clock)
