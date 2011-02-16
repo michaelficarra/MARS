@@ -27,39 +27,49 @@ case class NodeBehaviour (block : (Actor, Array[Int]) => Unit) {
 //  to random nodes until it gets back to the originator)
 
 def b0(sender : Actor, clock : Array[Int]) : Unit = {
-	val rand = prng.nextInt(nodes.length)
 	val time = clock(nodes indexOf self)
-	print(nodeName(self) + " @" + time + ": performing computation 0; ")
-	if(rand == 0) {
-		println("telling main thread that computation is done")
-		main ! ((self, clock, 'done))
-	} else if(rand % 4 == 0) {
-		println("telling #" + rand + " to perform computation 1")
-		nodes(rand) ! ((self, clock, nodeBehaviour1))
-	} else {
-		println("telling #" + rand + " to perform computation 0")
-		nodes(rand) ! ((self, clock, nodeBehaviour0))
-	}
+	var nextBehaviour = nodeBehaviour0
+	if(prng.nextInt(5) == 0)
+		nextBehaviour = nodeBehaviour1
+	println(nodeName(self) + " @" + time + ": performing computation 0")
+	for(node <- router)
+		node ! ((self, clock, nextBehaviour))
 }
 
 val nodeBehaviour0 = new NodeBehaviour(b0 _)
 
 def b1(sender : Actor, clock : Array[Int]) : Unit = {
-	val rand = prng.nextInt(nodes.length)
 	val time = clock(nodes indexOf self)
-	print(nodeName(self) + " @" + time + ": performing computation 1; ")
+	var nextBehaviour = nodeBehaviour1
+	if(prng.nextInt(5) == 0)
+		nextBehaviour = nodeBehaviour0
+	println(nodeName(self) + " @" + time + ": performing computation 1")
+	for(node <- router)
+		node ! ((self, clock, nextBehaviour))
+}
+
+val nodeBehaviour1 = new NodeBehaviour(b1 _)
+
+// a routing function used by the above behaviours to determine
+// the nodes to whom additional messages should be sent
+
+def router : List[Actor] = {
+	val rand = prng.nextInt(12)
 	if(rand == 0) {
 		println("telling main thread that computation is done")
-		main ! ((self, clock, 'done))
-	} else if(rand % 4 == 0) {
-		println("telling #" + rand + " to perform computation 0")
-		nodes(rand) ! ((self, clock, nodeBehaviour0))
+		main ! ((self, 'done))
+	} else if(rand > 8) {
+		return List(
+			nodes(prng.nextInt(nodes.length)),
+			nodes(prng.nextInt(nodes.length))
+		)
 	} else {
-		println("telling #" + rand + " to perform computation 1")
-		nodes(rand) ! ((self, clock, nodeBehaviour1))
+		return List(
+			nodes(prng.nextInt(nodes.length))
+		)
 	}
+	return List()
 }
-val nodeBehaviour1 = new NodeBehaviour(b1 _)
 
 
 
@@ -68,10 +78,12 @@ val nodeBehaviour1 = new NodeBehaviour(b1 _)
 	var clock = new Array[Int](numberOfNodes)
 	clock padTo (numberOfNodes, 0)
 	def log(msg : String) = println( "node #" + id + ": " + msg )
-	def updateClock(timestamp : Array[Int]) = {
+	def updateClock(sender : Actor, timestamp : Array[Int]) = {
+		val sid = nodes indexOf sender
 		clock.indices foreach { idx =>
 			clock(idx) = clock(idx) max timestamp(idx)
 		}
+		if(sid >= 0) clock(sid) = clock(sid) max timestamp(sid)
 		incrementClock
 	}
 	def incrementClock = {
@@ -81,7 +93,7 @@ val nodeBehaviour1 = new NodeBehaviour(b1 _)
 		case (sender : Actor, timestamp : Array[Int], block : NodeBehaviour) =>
 			log("received code to execute from " + nodeName(sender))
 			log("clock before: " + clock.toList.toString)
-			updateClock(timestamp)
+			updateClock(sender, timestamp)
 			log(" clock after: " + clock.toList.toString)
 			block(sender, clock)
 		case (sender : Actor, 'clock) =>
@@ -103,4 +115,4 @@ nodes(0) ! (self, initialTime, nodeBehaviour0)
 
 
 // wait for a node to tell us that the process is finished
-receive { case (sender : Actor, timestamp : Array[Int], 'done) => println("main thread received done notification") }
+receive { case (sender : Actor, 'done) => println("main thread received done notification") }
