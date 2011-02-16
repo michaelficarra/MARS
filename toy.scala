@@ -2,6 +2,7 @@ import scala.actors.Actor
 import scala.actors.Actor._
 import java.util.ArrayList
 import java.util.Random
+import java.io._
 
 
 val numberOfNodes = 10
@@ -10,6 +11,7 @@ val numberOfNodes = 10
 val main  = self
 val prng  = new Random()
 var nodes = Seq[Actor]()
+var files = Seq[PrintWriter]()
 
 def nodeName(node : Actor) : String = {
 	val id = nodes indexOf node
@@ -31,7 +33,7 @@ def b0(sender : Actor, clock : Array[Int]) : Unit = {
 	var nextBehaviour = nodeBehaviour0
 	if(prng.nextInt(5) == 0)
 		nextBehaviour = nodeBehaviour1
-	println(nodeName(self) + " @" + time + ": performing computation 0")
+	files(nodes indexOf self) write (nodeName(self) + " @" + time + ": performing computation 0\n")
 	for(node <- router)
 		node ! ((self, clock, nextBehaviour))
 }
@@ -43,7 +45,7 @@ def b1(sender : Actor, clock : Array[Int]) : Unit = {
 	var nextBehaviour = nodeBehaviour1
 	if(prng.nextInt(5) == 0)
 		nextBehaviour = nodeBehaviour0
-	println(nodeName(self) + " @" + time + ": performing computation 1")
+	files(nodes indexOf self) write (nodeName(self) + " @" + time + ": performing computation 1\n")
 	for(node <- router)
 		node ! ((self, clock, nextBehaviour))
 }
@@ -51,12 +53,12 @@ def b1(sender : Actor, clock : Array[Int]) : Unit = {
 val nodeBehaviour1 = new NodeBehaviour(b1 _)
 
 // a routing function used by the above behaviours to determine
-// the nodes to whom additional messages should be sent
+//  the nodes to whom additional messages should be sent
 
 def router : List[Actor] = {
 	val rand = prng.nextInt(12)
 	if(rand == 0) {
-		println("telling main thread that computation is done")
+		files(nodes indexOf self) write "telling main thread that computation is done\n"
 		main ! ((self, 'done))
 	} else if(rand > 8) {
 		return List(
@@ -77,7 +79,8 @@ def router : List[Actor] = {
 0 until numberOfNodes foreach { id =>
 	var clock = new Array[Int](numberOfNodes)
 	clock padTo (numberOfNodes, 0)
-	def log(msg : String) = println( "node #" + id + ": " + msg )
+	files = files :+  new PrintWriter (new File (id.toString + ".log"))
+	def log(msg : String) = files(id) write  ("node #" + id + ": " + msg + "\n" )
 	def updateClock(sender : Actor, timestamp : Array[Int]) = {
 		val sid = nodes indexOf sender
 		clock.indices foreach { idx =>
@@ -115,4 +118,10 @@ nodes(0) ! (self, initialTime, nodeBehaviour0)
 
 
 // wait for a node to tell us that the process is finished
-receive { case (sender : Actor, 'done) => println("main thread received done notification") }
+receive { case (sender : Actor, 'done) =>
+	println("main thread received done notification")
+	// remember to close all the files
+	0 until numberOfNodes foreach { id =>
+		files(id) close
+	}
+}
